@@ -2075,7 +2075,9 @@ function getBackendApiUrl(path: string) {
 
 function getBackendHttpBaseUrl() {
   return trimTrailingSlash(
-    process.env.NEXT_PUBLIC_BACKEND_HTTP_URL || "http://localhost:8080",
+    process.env.NEXT_PUBLIC_API_URL ||
+      process.env.NEXT_PUBLIC_BACKEND_HTTP_URL ||
+      "http://localhost:8080",
   );
 }
 
