@@ -13,6 +13,7 @@ import {
   Copy,
   FilePlus2,
   Languages,
+  Search,
   PencilLine,
   Play,
   Plus,
@@ -257,8 +258,21 @@ const languageOptions = [
   },
 ];
 
-const createStarterFromLanguage = (language: string) =>
-  languageOptions.find((option) => option.id === language)?.starter ?? "";
+function toJavaClassName(fileName: string) {
+  const baseName = fileName.replace(/\.java$/i, "").trim();
+  const sanitized = baseName.replace(/[^A-Za-z0-9_$]/g, "");
+  const normalized = sanitized.replace(/^[^A-Za-z_$]+/, "");
+  return normalized || "Main";
+}
+
+const createStarterFromLanguage = (language: string, fileName?: string) => {
+  if (language === "java") {
+    const className = toJavaClassName(fileName || "Main.java");
+    return `public class ${className} {\n  public static void main(String[] args) {\n    System.out.println("Hello McCE!");\n  }\n}\n`;
+  }
+
+  return languageOptions.find((option) => option.id === language)?.starter ?? "";
+};
 
 const createInitialFiles = (): FileItem[] => [
   {
@@ -372,6 +386,10 @@ export default function Dashboard({ roomId }: { roomId: string }) {
   const [showCreate, setShowCreate] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createLanguage, setCreateLanguage] = useState("java");
+  const [fileSearch, setFileSearch] = useState("");
+  const [fileLanguageFilter, setFileLanguageFilter] = useState("all");
+  const [renameFileId, setRenameFileId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
   const [terminalInput, setTerminalInput] = useState("");
   const [runState, setRunState] = useState<RunState>("idle");
   const [executionLog, setExecutionLog] = useState("");
@@ -421,6 +439,18 @@ export default function Dashboard({ roomId }: { roomId: string }) {
     () => files.find((file) => file.id === activeFileId) ?? files[0],
     [files, activeFileId],
   );
+  const filteredFiles = useMemo(() => {
+    const normalizedSearch = fileSearch.trim().toLowerCase();
+    return files.filter((file) => {
+      const matchesLanguage =
+        fileLanguageFilter === "all" || file.language === fileLanguageFilter;
+      const matchesSearch =
+        !normalizedSearch ||
+        file.name.toLowerCase().includes(normalizedSearch) ||
+        file.language.toLowerCase().includes(normalizedSearch);
+      return matchesLanguage && matchesSearch;
+    });
+  }, [fileLanguageFilter, fileSearch, files]);
 
   const applyRoomSnapshot = useCallback((snapshot: RoomState) => {
     const snapshotFiles = mapRoomFiles(snapshot.files);
@@ -1269,7 +1299,7 @@ export default function Dashboard({ roomId }: { roomId: string }) {
       id,
       name,
       language,
-      content: createStarterFromLanguage(language),
+      content: createStarterFromLanguage(language, name),
       version: 0,
     };
     setFiles((prev) => [...prev, newFile]);
@@ -1301,7 +1331,7 @@ export default function Dashboard({ roomId }: { roomId: string }) {
           id: crypto.randomUUID(),
           name: "Main.java",
           language: "java",
-          content: createStarterFromLanguage("java"),
+          content: createStarterFromLanguage("java", "Main.java"),
           version: 0,
         };
         nextActiveId = replacementFile.id;
@@ -1340,16 +1370,19 @@ export default function Dashboard({ roomId }: { roomId: string }) {
     const file = files.find((item) => item.id === id);
     if (!file) return;
 
-    const newName = window.prompt("New file name (e.g. Main.java):", file.name);
-    if (!newName) return;
+    setRenameFileId(id);
+    setRenameDraft(file.name);
+  };
 
-    const trimmed = newName.trim();
+  const handleRenameSubmit = () => {
+    if (!renameFileId) return;
+    const trimmed = renameDraft.trim();
     if (!trimmed) return;
 
     const nextLanguage = getLanguageFromName(trimmed);
     setFiles((prev) =>
       prev.map((item) =>
-        item.id === id
+        item.id === renameFileId
           ? { ...item, name: trimmed, language: nextLanguage }
           : item,
       ),
@@ -1357,9 +1390,11 @@ export default function Dashboard({ roomId }: { roomId: string }) {
     sendWorkspaceEvent({
       roomId,
       type: "RENAME_FILE",
-      fileId: id,
+      fileId: renameFileId,
       name: trimmed,
     });
+    setRenameFileId(null);
+    setRenameDraft("");
   };
 
   const handleUpdateLanguage = (id: string, language: string) => {
@@ -1621,7 +1656,7 @@ export default function Dashboard({ roomId }: { roomId: string }) {
       </header>
 
       <div className="mx-auto flex max-w-[1600px] flex-col gap-4 px-4 py-4 sm:px-6">
-        <section className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_360px]">
+        <section className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)_340px]">
           <aside className="rounded-3xl border border-white/10 bg-slate-950/55 backdrop-blur">
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-white">
@@ -1679,8 +1714,52 @@ export default function Dashboard({ roomId }: { roomId: string }) {
               </div>
             </div>
 
+            <div className="border-b border-white/10 px-3 py-3">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <input
+                  value={fileSearch}
+                  onChange={(event) => setFileSearch(event.target.value)}
+                  placeholder="Find file..."
+                  className="w-full rounded-2xl border border-white/10 bg-slate-900/80 py-2.5 pl-10 pr-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+                />
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFileLanguageFilter("all")}
+                  className={`rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] transition ${
+                    fileLanguageFilter === "all"
+                      ? "bg-cyan-400/20 text-cyan-100"
+                      : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200"
+                  }`}
+                >
+                  All
+                </button>
+                {languageOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setFileLanguageFilter(option.id)}
+                    className={`rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] transition ${
+                      fileLanguageFilter === option.id
+                        ? "bg-cyan-400/20 text-cyan-100"
+                        : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="max-h-[620px] space-y-2 overflow-auto p-3">
-              {files.map((file) => {
+              {filteredFiles.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-6 text-center text-sm text-slate-400">
+                  No files match the current search or language filter.
+                </div>
+              )}
+              {filteredFiles.map((file) => {
                 const selected = file.id === activeFile.id;
 
                 return (
@@ -2053,6 +2132,54 @@ export default function Dashboard({ roomId }: { roomId: string }) {
             >
               Enter workspace
             </button>
+          </div>
+        </div>
+      )}
+
+      {renameFileId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur">
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-950 p-6 shadow-2xl">
+            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-200">
+              Rename File
+            </div>
+            <p className="mt-3 text-sm text-slate-400">
+              Update the filename. The language tag will follow the new extension.
+            </p>
+            <input
+              autoFocus
+              value={renameDraft}
+              onChange={(event) => setRenameDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  handleRenameSubmit();
+                }
+                if (event.key === "Escape") {
+                  setRenameFileId(null);
+                  setRenameDraft("");
+                }
+              }}
+              placeholder="Student.java"
+              className="mt-5 w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+            />
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setRenameFileId(null);
+                  setRenameDraft("");
+                }}
+                className="flex-1 cursor-pointer rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRenameSubmit}
+                className="flex-1 cursor-pointer rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300"
+              >
+                Save
+              </button>
+            </div>
           </div>
         </div>
       )}
