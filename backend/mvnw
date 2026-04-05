@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+if command -v mvn >/dev/null 2>&1; then
+  exec mvn -f "$SCRIPT_DIR/pom.xml" "$@"
+fi
+
+echo "mvn was not found in PATH. Install Maven 3.9+ or run the build inside the provided Docker image." >&2
+exit 1
