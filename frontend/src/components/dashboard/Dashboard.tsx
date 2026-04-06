@@ -271,7 +271,9 @@ const createStarterFromLanguage = (language: string, fileName?: string) => {
     return `public class ${className} {\n  public static void main(String[] args) {\n    System.out.println("Hello McCE!");\n  }\n}\n`;
   }
 
-  return languageOptions.find((option) => option.id === language)?.starter ?? "";
+  return (
+    languageOptions.find((option) => option.id === language)?.starter ?? ""
+  );
 };
 
 const createInitialFiles = (): FileItem[] => [
@@ -758,7 +760,9 @@ export default function Dashboard({ roomId }: { roomId: string }) {
         if (headers.session) {
           setParticipants((prev) => {
             if (
-              prev.some((participant) => participant.sessionId === headers.session)
+              prev.some(
+                (participant) => participant.sessionId === headers.session,
+              )
             ) {
               return prev;
             }
@@ -1859,6 +1863,17 @@ export default function Dashboard({ roomId }: { roomId: string }) {
                   <SquareTerminal className="h-4 w-4" />
                   {isTerminalOpen ? "Hide terminal" : "Show terminal"}
                 </button>
+                {isTerminalOpen && (
+                  <button
+                    type="button"
+                    onClick={() => setIsTerminalOpen(false)}
+                    className="inline-flex cursor-pointer items-center justify-center rounded-full border border-white/10 bg-white/[0.05] p-2.5 text-slate-300 transition hover:bg-white/[0.1] hover:text-white"
+                    title="Close terminal"
+                    aria-label="Close terminal"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
                 <button
                   onClick={handleRunCode}
                   className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300"
@@ -2034,6 +2049,12 @@ export default function Dashboard({ roomId }: { roomId: string }) {
                 <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                   Active Members
                 </div>
+                {collaborationState === "connecting" && (
+                  <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-3 text-sm text-amber-100">
+                    The server is starting up. Keep the tab open for a few
+                    seconds to allow collaboration to connect to the server.
+                  </div>
+                )}
                 <div className="mt-2 text-sm font-semibold text-cyan-100">
                   {participants.length} online now
                 </div>
@@ -2143,7 +2164,8 @@ export default function Dashboard({ roomId }: { roomId: string }) {
               Rename File
             </div>
             <p className="mt-3 text-sm text-slate-400">
-              Update the filename. The language tag will follow the new extension.
+              Update the filename. The language tag will follow the new
+              extension.
             </p>
             <input
               autoFocus
